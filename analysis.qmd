@@ -17,5 +17,80 @@ library(jsonlite)
 EOF
 printf "analysis_files\n\n" > .gitignore
 
+```{r}
+raw <- read_json("data/wildfires.geojson")
 
+length(raw$features)
+```
+
+```{r}
+first_fire <- raw$features[[1]]
+
+names(first_fire)
+
+first_fire$geometry$type
+
+first_fire$geometry$coordinates[[1]][[1]]
+```
+
+```{r}
+#| cache: true
+fires <- tibble(features = raw$features) |>
+  unnest_wider(features) |>
+  unnest_wider(properties) |>
+  unnest_wider(geometry, names_sep = "_") |>
+  select(incident, gis_acres, fire_year, agency, state,
+         geometry_coordinates) |>
+  mutate(gis_acres = as.numeric(gis_acres),
+         fire_year = as.integer(fire_year))
+
+```
+
+
+```{r}
+fires |>
+  filter(str_detect(incident, "August"))
+
+fires |>
+  slice_max(gis_acres, n = 10) |>
+  select(incident, gis_acres, fire_year, state)
+```
+
+```{r}
+big_fires <- fires |>
+  filter(gis_acres >= 100000) |>
+  mutate(
+    lon = map_dbl(geometry_coordinates, \(coords) mean(map_dbl(coords[[1]], 1))),
+    lat = map_dbl(geometry_coordinates, \(coords) mean(map_dbl(coords[[1]], 2)))
+  )
+```
+
+
+```{r}
+top10 <- big_fires |>
+  slice_max(gis_acres, n = 10)
+
+fire_map <- leaflet() |>
+  addProviderTiles(providers$CartoDB.DarkMatter)
+
+for (i in seq_len(nrow(top10))) {
+  ring <- top10$geometry_coordinates[[i]][[1]]
+  fire_map <- fire_map |>
+    addPolygons(
+      lng = map_dbl(ring, 1),
+      lat = map_dbl(ring, 2),
+      color = "#ff8c1a",
+      weight = 1.5,
+      fillColor = "#ff6a00",
+      fillOpacity = 0.45,
+      popup = paste0("<b>", top10$incident[i], "</b><br>",
+                     top10$fire_year[i], "<br>",
+                     scales::label_comma()(round(top10$gis_acres[i])), " acres")
+    )
+}
+
+fire_map |>
+  fitBounds(min(top10$lon) - 1, min(top10$lat) - 1,
+            max(top10$lon) + 1, max(top10$lat) + 1)
+```
 
