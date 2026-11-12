@@ -1,0 +1,21 @@
+cat > analysis.qmd << 'EOF'
+---
+title: "Wildfires"
+author: "Zheyre Tolliver"
+format: html
+execute:
+  echo: false
+---
+
+```{r}
+#| message: false
+library(tidyverse)
+library(purrr)
+library(leaflet)
+library(jsonlite)
+```
+EOF
+printf "analysis_files\n\n" > .gitignore
+
+
+
